@@ -105,6 +105,10 @@ h1{font-size:16px;font-weight:500;color:#333;text-align:center;padding:1rem 0 0.
 .log-empty{font-size:14px;color:#bbb;text-align:center;padding:2rem 0;}
 .del-btn{font-size:11px;color:#ccc;cursor:pointer;border:none;background:none;padding:4px;}
 .month-label{font-size:15px;font-weight:500;color:#333;margin-bottom:12px;}
+@keyframes screen-flash{0%,100%{background:#f5f5f0}25%,75%{background:#FCEBEB}50%{background:#f5f5f0}}
+.flash-active{animation:screen-flash 0.5s ease 4;}
+.alarm-toggle{padding:8px 14px;font-size:13px;border-radius:8px;cursor:pointer;border:0.5px solid #ddd;background:#f5f5f0;color:#888;}
+.alarm-toggle.on{background:#EAF3DE;color:#3B6D11;border-color:#C0DD97;}
 #login-screen{position:fixed;inset:0;background:#f5f5f0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:1000;}
 .login-card{background:#fff;border:0.5px solid #e0e0d8;border-radius:16px;padding:2rem 1.5rem;text-align:center;max-width:320px;width:90%;box-shadow:0 2px 16px rgba(0,0,0,0.06);}
 .login-icon{font-size:36px;margin-bottom:0.75rem;}
@@ -159,6 +163,7 @@ h1{font-size:16px;font-weight:500;color:#333;text-align:center;padding:1rem 0 0.
       <div class="train-row">
         <input type="time" id="trainTime" value="23:30"/>
         <button class="small-btn" onclick="setTrain()">セット</button>
+        <button class="alarm-toggle on" id="alarmToggle" onclick="toggleAlarm()">🔔 ON</button>
       </div>
     </div>
     <div class="card">
@@ -255,14 +260,18 @@ const DRINKS=[
 ];
 const COMMENTS=["シラフです（えらい）","1杯目。まだ人間","2杯目。いい感じ〜","3杯目。もう一軒行きたい気がしてきた","4杯目。終電ヤバいかも（感知なし）","5杯目。タクシー代を計算し始めた","6杯目。記憶が飛ぶ予感","7杯以上。翌朝の自分への謝罪が必要"];
 let trainMin=23*60+30,drinkCounts={beer:0,hiball:0,sour:0,sake:0,shochu:0,wine:0},checkinTime=null,selectedType=null,records=[];
+let alarmEnabled=true,alarmFired=new Set();
 try{records=JSON.parse(localStorage.getItem('yarakashi_v5')||'[]');}catch(e){}
 function pad(n){return String(n).padStart(2,'0');}
 function getShopHistory(){return[...new Set(records.map(r=>r.shop).filter(s=>s&&s.trim()))].slice(0,6);}
 function renderShopHistory(){const h=getShopHistory();const el=document.getElementById('shopHistory');el.innerHTML=h.map(s=>`<span class="shop-chip" onclick="document.getElementById('shopInput').value='${s.replace(/'/g,"\\'")}'">📍${s}</span>`).join('');}
 function switchTab(t){document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',(i===0&&t==='tonight')||(i===1&&t==='monthly')));document.getElementById('pane-tonight').classList.toggle('active',t==='tonight');document.getElementById('pane-monthly').classList.toggle('active',t==='monthly');if(t==='monthly')renderMonthly();}
-function setTrain(){const v=document.getElementById('trainTime').value;if(!v)return;const[h,m]=v.split(':').map(Number);trainMin=(h<5?h+24:h)*60+m;updateClock();}
+function setTrain(){const v=document.getElementById('trainTime').value;if(!v)return;const[h,m]=v.split(':').map(Number);trainMin=(h<5?h+24:h)*60+m;alarmFired=new Set();updateClock();}
+function toggleAlarm(){alarmEnabled=!alarmEnabled;const btn=document.getElementById('alarmToggle');btn.textContent=alarmEnabled?'🔔 ON':'🔕 OFF';btn.classList.toggle('on',alarmEnabled);}
+function playBeep(times){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();let t=ctx.currentTime;for(let i=0;i<times;i++){const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;o.type='sine';g.gain.setValueAtTime(0.4,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.3);o.start(t);o.stop(t+0.3);t+=0.45;}}catch(e){}}
+function fireAlarm(msg){playBeep(3);document.body.classList.remove('flash-active');void document.body.offsetWidth;document.body.classList.add('flash-active');document.body.addEventListener('animationend',()=>document.body.classList.remove('flash-active'),{once:true});if('Notification' in window&&Notification.permission==='granted'){new Notification('🚃 終電アラーム',{body:msg,icon:''});}}
 function getNowMin(){const d=new Date();const h=d.getHours();return(h<5?h+24:h)*60+d.getMinutes();}
-function updateClock(){const rem=trainMin-getNowMin();const cd=document.getElementById('cdNum'),msg=document.getElementById('statusMsg');const total=getTotalDrinks();if(rem<=0){cd.textContent='終電行った';cd.style.fontSize='28px';document.getElementById('cdLabel').textContent='😱';msg.className='status-msg danger';msg.textContent='終電行ったよ…タクシー代いくらかな 🚕';}else{const h=Math.floor(rem/60),m=rem%60;cd.textContent=h>0?h+'時間'+pad(m)+'分':m+'分';cd.style.fontSize=h>0?'36px':'52px';document.getElementById('cdLabel').textContent='終電まで';if(rem<=10){msg.className='status-msg danger';msg.textContent='🚨 あと'+rem+'分！今すぐ出て！！';}else if(rem<=20){msg.className='status-msg danger';msg.textContent='🚃 急いで。あと'+rem+'分しかない';}else if(rem<=40){msg.className='status-msg warn';msg.textContent='⚠️ そろそろ動いた方がいいかも（'+rem+'分)';}else{msg.className='status-msg ok';msg.textContent=total<4?'まだ大丈夫！でも飲みすぎ注意 🍺':'杯数ヤバいけど時間はまだある 🍺';}}}
+function updateClock(){const rem=trainMin-getNowMin();const cd=document.getElementById('cdNum'),msg=document.getElementById('statusMsg');const total=getTotalDrinks();if(alarmEnabled){if(rem===15&&!alarmFired.has(15)){alarmFired.add(15);fireAlarm('終電まで15分！そろそろ動いて！');}if(rem===5&&!alarmFired.has(5)){alarmFired.add(5);fireAlarm('終電まであと5分！今すぐ出て！！');}}if(rem<=0){cd.textContent='終電行った';cd.style.fontSize='28px';document.getElementById('cdLabel').textContent='😱';msg.className='status-msg danger';msg.textContent='終電行ったよ…タクシー代いくらかな 🚕';}else{const h=Math.floor(rem/60),m=rem%60;cd.textContent=h>0?h+'時間'+pad(m)+'分':m+'分';cd.style.fontSize=h>0?'36px':'52px';document.getElementById('cdLabel').textContent='終電まで';if(rem<=10){msg.className='status-msg danger';msg.textContent='🚨 あと'+rem+'分！今すぐ出て！！';}else if(rem<=20){msg.className='status-msg danger';msg.textContent='🚃 急いで。あと'+rem+'分しかない';}else if(rem<=40){msg.className='status-msg warn';msg.textContent='⚠️ そろそろ動いた方がいいかも（'+rem+'分)';}else{msg.className='status-msg ok';msg.textContent=total<4?'まだ大丈夫！でも飲みすぎ注意 🍺':'杯数ヤバいけど時間はまだある 🍺';}}}
 function toggleCheckin(){if(!checkinTime){checkinTime=new Date();document.getElementById('checkinBtn').textContent='退店';document.getElementById('checkinBtn').classList.add('active');renderShopHistory();updateStay();}else{checkinTime=null;document.getElementById('checkinBtn').textContent='入店';document.getElementById('checkinBtn').classList.remove('active');document.getElementById('checkinStatus').textContent='チェックアウトしました';document.getElementById('stayAlert').innerHTML='';}}
 function fmtStay(min){if(min<60)return min+'分';return Math.floor(min/60)+'時間'+pad(min%60)+'分';}
 function updateStay(){if(!checkinTime)return;const elapsed=Math.floor((new Date()-checkinTime)/60000);const shop=document.getElementById('shopInput').value.trim();document.getElementById('checkinStatus').textContent=(shop?'📍'+shop+' で':'')+'滞在中 🍺';document.getElementById('stayTime').textContent=fmtStay(elapsed);document.getElementById('staySince').textContent=checkinTime.getHours()+':'+pad(checkinTime.getMinutes())+'から';const pct=Math.min((elapsed/180)*100,100);document.getElementById('stayBar').style.width=pct+'%';document.getElementById('stayBar').style.background=elapsed<60?'#378ADD':elapsed<120?'#BA7517':'#A32D2D';const a=document.getElementById('stayAlert');if(elapsed>=180)a.innerHTML='<div class="stay-danger-msg">3時間超え。もうほぼ終電ない時間帯では…？ 🚕</div>';else if(elapsed>=120)a.innerHTML='<div class="stay-danger-msg">2時間経過。そろそろ本気でやばい 😇</div>';else if(elapsed>=90)a.innerHTML='<div class="stay-warn-msg">1時間半。終電を意識し始めるべき時間です</div>';else if(elapsed>=60)a.innerHTML='<div class="stay-warn-msg">1時間経過。飲みすぎていませんか？ 🍺</div>';else a.innerHTML='';}
