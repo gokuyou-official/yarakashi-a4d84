@@ -123,6 +123,7 @@ h1{font-size:16px;font-weight:500;color:#333;text-align:center;padding:1rem 0 0.
 .logout-btn{font-size:12px;color:#888;background:none;border:0.5px solid #ddd;border-radius:6px;padding:4px 10px;cursor:pointer;}
 .logout-btn:hover{background:#f5f5f0;}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.counter.dev/script.js" data-id="17eb9b8b-e902-4730-a467-38ee86086b48" data-utcoffset="9"></script>
 </head>
 <body>
@@ -130,18 +131,18 @@ h1{font-size:16px;font-weight:500;color:#333;text-align:center;padding:1rem 0 0.
 <div id="login-screen">
   <div class="login-card">
     <div class="login-icon">🚃</div>
-    <div class="login-title">終電逃さないアプリ</div>
-    <div class="login-sub">Googleアカウントでログインして<br>やらかし記録を始めましょう</div>
-    <button onclick="skipLogin()" style="width:100%;padding:12px;font-size:13px;border:none;background:none;color:#aaa;cursor:pointer;margin-bottom:8px;">ログインせずに使う →</button>
-    <button class="google-btn" onclick="window.googleLogin()">
-      <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
-        <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
-        <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
-        <path d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z" fill="#FBBC05"/>
-        <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z" fill="#EA4335"/>
-      </svg>
-      Googleでログイン
-    </button>
+    <div class="login-title">YARAKASHI</div>
+    <div class="login-sub">メールアドレスにMagic Linkを送って<br>ワンタップでログイン</div>
+    <div id="login-form">
+      <input id="login-email" type="email" placeholder="メールアドレス" style="width:100%;padding:11px 14px;font-size:15px;border:0.5px solid #ddd;border-radius:8px;background:#f5f5f0;color:#333;margin-bottom:10px;box-sizing:border-box;"/>
+      <button onclick="sendMagicLink()" class="google-btn" style="margin-bottom:8px;">✉️ Magic Linkを送る</button>
+      <button onclick="skipLogin()" style="width:100%;padding:12px;font-size:13px;border:none;background:none;color:#aaa;cursor:pointer;">ログインせずに使う →</button>
+    </div>
+    <div id="login-sent" style="display:none;text-align:center;">
+      <div style="font-size:36px;margin-bottom:12px">📬</div>
+      <div style="font-size:14px;color:#555;line-height:1.7">メールを送りました。<br>メール内のリンクをタップしてください。<br><span style="font-size:12px;color:#aaa">届かない場合は迷惑メールフォルダも確認してください</span></div>
+      <button onclick="document.getElementById('login-form').style.display='';document.getElementById('login-sent').style.display='none'" style="margin-top:16px;width:100%;padding:10px;font-size:13px;border:0.5px solid #ddd;border-radius:8px;background:#f5f5f0;color:#888;cursor:pointer;">← やり直す</button>
+    </div>
   </div>
 </div>
 
@@ -149,7 +150,7 @@ h1{font-size:16px;font-weight:500;color:#333;text-align:center;padding:1rem 0 0.
   <div id="user-bar">
     <img id="user-photo" src="" alt=""/>
     <span id="user-name"></span>
-    <button class="logout-btn" onclick="window.googleLogout()">ログアウト</button>
+    <button class="logout-btn" onclick="doLogout()">ログアウト</button>
   </div>
   <h1><span style="font-size:22px;font-weight:700;display:block;line-height:1.2">YARAKASHI</span><span style="font-size:13px;font-weight:400;color:#888;display:block;margin-top:2px">🚃 終電逃さないアプリ 🚃</span></h1>
   <div class="tabs">
@@ -261,6 +262,10 @@ const DRINKS=[
 const COMMENTS=["シラフです（えらい）","1杯目。まだ人間","2杯目。いい感じ〜","3杯目。もう一軒行きたい気がしてきた","4杯目。終電ヤバいかも（感知なし）","5杯目。タクシー代を計算し始めた","6杯目。記憶が飛ぶ予感","7杯以上。翌朝の自分への謝罪が必要"];
 let trainMin=23*60+30,trainSet=false,drinkCounts={beer:0,hiball:0,sour:0,sake:0,shochu:0,wine:0},checkinTime=null,selectedType=null,records=[];
 let alarmEnabled=true,alarmFired=new Set();
+const SUPA_URL='https://vktzbishexpahdmvvwcb.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrdHpiaXNoZXhwYWhkbXZ2d2NiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyMjkxODksImV4cCI6MjA5MzgwNTE4OX0.S8gWP0oEd63BYLLqPvmdV0OT9yUpH-locooZsQcVNqs';
+let sb=null,currentUser=null,guestMode=false;
+// localStorage fallback（ゲストモード・オフライン時）
 try{records=JSON.parse(localStorage.getItem('yarakashi_v5')||'[]');}catch(e){}
 function pad(n){return String(n).padStart(2,'0');}
 function getShopHistory(){return[...new Set(records.map(r=>r.shop).filter(s=>s&&s.trim()))].slice(0,6);}
@@ -282,77 +287,35 @@ function selectType(id){selectedType=id;renderDrinkDetail();}
 function renderDrinkDetail(){if(!selectedType){document.getElementById('drinkDetail').innerHTML='';return;}const d=DRINKS.find(x=>x.id===selectedType);document.getElementById('drinkDetail').innerHTML=`<div class="drink-detail"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div style="font-size:13px;font-weight:500;color:#333">${d.emoji} ${d.name}</div><button class="close-btn" onclick="selectedType=null;renderDrinkDetail()">閉じる</button></div><div class="drink-ctrl"><button class="d-btn" onclick="changeDrink('${d.id}',-1)">－</button><div class="drink-ctrl-num">${drinkCounts[d.id]}<span style="font-size:14px;font-weight:400;color:#888"> 杯</span></div><button class="d-btn" onclick="changeDrink('${d.id}',1)">＋</button></div></div>`;}
 function changeDrink(id,delta){drinkCounts[id]=Math.max(0,drinkCounts[id]+delta);renderDrinkTypes();renderDrinkDetail();updateDrinkSummary();saveTonightState();}
 function updateDrinkSummary(){const total=getTotalDrinks();document.getElementById('totalDrinks').textContent=total;document.getElementById('drinkComment').textContent=COMMENTS[Math.min(total,COMMENTS.length-1)];document.getElementById('drinkSummary').innerHTML=DRINKS.filter(d=>drinkCounts[d.id]>0).map(d=>`<span class="drink-tag">${d.emoji} ${d.name} ${drinkCounts[d.id]}杯</span>`).join('');}
-function recordYarakashi(){trackEvent('yarakashi');const memo=document.getElementById('memoInput').value.trim();const shop=document.getElementById('shopInput').value.trim();const cost=prompt('タクシー代はいくらでしたか？（わからなければ0）','3000');if(cost===null)return;const now=new Date();const dateStr=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());const stayMin=checkinTime?Math.floor((now-checkinTime)/60000):null;const drinksSnap={...drinkCounts};const total=getTotalDrinks();const topDrink=DRINKS.filter(d=>drinksSnap[d.id]>0).sort((a,b)=>drinksSnap[b.id]-drinksSnap[a.id])[0];records.push({date:dateStr,shop:shop||'',drinks:drinksSnap,total,cost:parseInt(cost)||0,memo:memo||'メモなし',stayMin,yarakashi:true});save();const shopMsg=shop?`📍${shop}での夜でした。`:'';const drinkMsg=topDrink?`今夜の主犯は${topDrink.emoji}${topDrink.name}（${drinksSnap[topDrink.id]}杯）。`:'';alert(`記録しました😢 今月${getThisMonth().length}回目のやらかしです…\n${shopMsg}${drinkMsg}`);resetTonight();}
-function recordDone(){trackEvent('done');const memo=document.getElementById('memoInput').value.trim();const shop=document.getElementById('shopInput').value.trim();const now=new Date();const dateStr=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());const stayMin=checkinTime?Math.floor((now-checkinTime)/60000):null;const drinksSnap={...drinkCounts};const total=getTotalDrinks();records.push({date:dateStr,shop:shop||'',drinks:drinksSnap,total,cost:0,memo:memo||'',stayMin,yarakashi:false});save();alert('お疲れ様でした！今夜は無事に帰れましたね✅');resetTonight();}
-function resetTonight(){checkinTime=null;document.getElementById('checkinBtn').textContent='入店';document.getElementById('checkinBtn').classList.remove('active');document.getElementById('checkinStatus').textContent='まだチェックインしていません';document.getElementById('stayTime').textContent='0分';document.getElementById('staySince').textContent='';document.getElementById('stayBar').style.width='0%';document.getElementById('stayAlert').innerHTML='';document.getElementById('shopInput').value='';document.getElementById('memoInput').value='';trainSet=false;document.getElementById('trainTime').value='';document.getElementById('cdNum').textContent='--:--';document.getElementById('cdNum').style.fontSize='52px';document.getElementById('cdLabel').textContent='終電まで';document.getElementById('statusMsg').className='status-msg ok';document.getElementById('statusMsg').textContent='まだ大丈夫！でも飲みすぎ注意 🍺';drinkCounts={beer:0,hiball:0,sour:0,sake:0,shochu:0,wine:0};selectedType=null;renderDrinkTypes();renderDrinkDetail();updateDrinkSummary();try{localStorage.removeItem('yarakashi_tonight');}catch(e){}}
+function recordYarakashi(){trackEvent('yarakashi');const memo=document.getElementById('memoInput').value.trim();const shop=document.getElementById('shopInput').value.trim();const cost=prompt('タクシー代はいくらでしたか？（わからなければ0）','3000');if(cost===null)return;const now=new Date();const dateStr=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());const stayMin=checkinTime?Math.floor((now-checkinTime)/60000):null;const drinksSnap={...drinkCounts};const total=getTotalDrinks();const topDrink=DRINKS.filter(d=>drinksSnap[d.id]>0).sort((a,b)=>drinksSnap[b.id]-drinksSnap[a.id])[0];const newRec={date:dateStr,shop:shop||'',drinks:drinksSnap,total,cost:parseInt(cost)||0,memo:memo||'メモなし',stayMin,yarakashi:true};records.push(newRec);save();saveRecordToSupabase(newRec);const shopMsg=shop?`📍${shop}での夜でした。`:'';const drinkMsg=topDrink?`今夜の主犯は${topDrink.emoji}${topDrink.name}（${drinksSnap[topDrink.id]}杯）。`:'';alert(`記録しました😢 今月${getThisMonth().length}回目のやらかしです…\n${shopMsg}${drinkMsg}`);resetTonight();}
+function recordDone(){trackEvent('done');const memo=document.getElementById('memoInput').value.trim();const shop=document.getElementById('shopInput').value.trim();const now=new Date();const dateStr=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());const stayMin=checkinTime?Math.floor((now-checkinTime)/60000):null;const drinksSnap={...drinkCounts};const total=getTotalDrinks();const newRec={date:dateStr,shop:shop||'',drinks:drinksSnap,total,cost:0,memo:memo||'',stayMin,yarakashi:false};records.push(newRec);save();saveRecordToSupabase(newRec);alert('お疲れ様でした！今夜は無事に帰れましたね✅');resetTonight();}
+function resetTonight(){checkinTime=null;document.getElementById('checkinBtn').textContent='入店';document.getElementById('checkinBtn').classList.remove('active');document.getElementById('checkinStatus').textContent='まだチェックインしていません';document.getElementById('stayTime').textContent='0分';document.getElementById('staySince').textContent='';document.getElementById('stayBar').style.width='0%';document.getElementById('stayAlert').innerHTML='';document.getElementById('shopInput').value='';document.getElementById('memoInput').value='';trainSet=false;document.getElementById('trainTime').value='';document.getElementById('cdNum').textContent='--:--';document.getElementById('cdNum').style.fontSize='52px';document.getElementById('cdLabel').textContent='終電まで';document.getElementById('statusMsg').className='status-msg ok';document.getElementById('statusMsg').textContent='まだ大丈夫！でも飲みすぎ注意 🍺';drinkCounts={beer:0,hiball:0,sour:0,sake:0,shochu:0,wine:0};selectedType=null;renderDrinkTypes();renderDrinkDetail();updateDrinkSummary();try{localStorage.removeItem('yarakashi_tonight');}catch(e){}if(sb&&currentUser)sb.from('tonight_state').delete().eq('user_id',currentUser.id).then(()=>{});}
 function save(){try{localStorage.setItem('yarakashi_v5',JSON.stringify(records));}catch(e){}}
-function saveTonightState(){try{localStorage.setItem('yarakashi_tonight',JSON.stringify({trainMin,drinkCounts:{...drinkCounts},checkinTime:checkinTime?checkinTime.toISOString():null,shop:document.getElementById('shopInput').value,memo:document.getElementById('memoInput').value}));}catch(e){}}
+async function saveRecordToSupabase(rec){if(!sb||!currentUser)return;try{const{data,error}=await sb.from('records').insert({user_id:currentUser.id,date:rec.date,shop:rec.shop||'',drinks:rec.drinks||{},total:rec.total||0,cost:rec.cost||0,memo:rec.memo||'',stay_min:rec.stayMin!=null?rec.stayMin:null,yarakashi:rec.yarakashi!==false}).select().single();if(!error&&data)rec._id=data.id;}catch(e){}}
+async function deleteRecordFromSupabase(rec){if(!sb||!currentUser||!rec._id)return;try{await sb.from('records').delete().eq('id',rec._id).eq('user_id',currentUser.id);}catch(e){}}
+async function loadRecordsFromSupabase(){if(!sb||!currentUser)return;try{const{data,error}=await sb.from('records').select('*').eq('user_id',currentUser.id).order('date',{ascending:false});if(!error&&data){records=data.map(r=>({date:r.date,shop:r.shop||'',drinks:r.drinks||{},total:r.total||0,cost:r.cost||0,memo:r.memo||'',stayMin:r.stay_min,yarakashi:r.yarakashi,_id:r.id}));try{localStorage.setItem('yarakashi_v5',JSON.stringify(records));}catch(e){}}}catch(e){}}
+async function saveTonightStateToSupabase(){if(!sb||!currentUser)return;try{const shop=document.getElementById('shopInput').value;const memo=document.getElementById('memoInput').value;await sb.from('tonight_state').upsert({user_id:currentUser.id,train_min:trainMin,train_set:trainSet,drink_counts:drinkCounts,checkin_time:checkinTime?checkinTime.toISOString():null,shop,memo,updated_at:new Date().toISOString()});}catch(e){}}
+async function loadTonightStateFromSupabase(){if(!sb||!currentUser)return;try{const{data}=await sb.from('tonight_state').select('*').eq('user_id',currentUser.id).maybeSingle();if(!data)return;if(data.train_min&&data.train_set){trainMin=data.train_min;trainSet=true;document.getElementById('trainTime').value=pad(Math.floor(trainMin/60)%24)+':'+pad(trainMin%60);}if(data.drink_counts)drinkCounts=data.drink_counts;if(data.checkin_time){checkinTime=new Date(data.checkin_time);document.getElementById('checkinBtn').textContent='退店';document.getElementById('checkinBtn').classList.add('active');}document.getElementById('shopInput').value=data.shop||'';document.getElementById('memoInput').value=data.memo||'';}catch(e){}}
+async function handleAuthUser(user){if(currentUser&&currentUser.id===user.id)return;currentUser=user;document.getElementById('login-screen').style.display='none';document.getElementById('user-bar').style.display='flex';document.getElementById('user-name').textContent=user.email;document.getElementById('user-photo').style.display='none';await loadRecordsFromSupabase();renderShopHistory();await loadTonightStateFromSupabase();renderDrinkTypes();updateDrinkSummary();updateClock();updateStay();checkMigration();}
+function handleSignOut(){currentUser=null;guestMode=false;records=[];document.getElementById('user-bar').style.display='none';document.getElementById('login-screen').style.display='flex';}
+async function sendMagicLink(){const email=document.getElementById('login-email').value.trim();if(!email){alert('メールアドレスを入力してください');return;}if(!sb){alert('初期化中です。少し待ってから再試行してください');return;}try{const{error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}});if(error){alert('エラー: '+error.message);return;}document.getElementById('login-form').style.display='none';document.getElementById('login-sent').style.display='block';}catch(e){alert('エラー: '+e.message);}}
+function skipLogin(){guestMode=true;document.getElementById('login-screen').style.display='none';loadTonightState();renderShopHistory();}
+async function doLogout(){if(sb)await sb.auth.signOut();handleSignOut();}
+function checkMigration(){if(guestMode)return;try{const raw=localStorage.getItem('yarakashi_v5');if(!raw)return;const localData=JSON.parse(raw);if(!localData||!localData.length)return;if(document.getElementById('migration-banner'))return;const el=document.createElement('div');el.id='migration-banner';el.style='background:#FAEEDA;color:#854F0B;padding:12px 1rem;display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:8px;margin-bottom:1rem;';el.innerHTML=`<span style="font-size:13px">📦 ローカルに${localData.length}件の記録があります</span><button onclick="migrateFromLocalStorage()" style="padding:7px 14px;font-size:12px;font-weight:500;border:none;border-radius:8px;background:#854F0B;color:#fff;cursor:pointer;white-space:nowrap">クラウドに移行する</button>`;const tabs=document.querySelector('.app .tabs');document.querySelector('.app').insertBefore(el,tabs);}catch(e){}}
+async function migrateFromLocalStorage(){const btn=document.querySelector('#migration-banner button');btn.textContent='移行中...';btn.disabled=true;try{const localData=JSON.parse(localStorage.getItem('yarakashi_v5')||'[]');let success=0;for(const rec of localData){const{error}=await sb.from('records').insert({user_id:currentUser.id,date:rec.date,shop:rec.shop||'',drinks:rec.drinks||{},total:rec.total||0,cost:rec.cost||0,memo:rec.memo||'',stay_min:rec.stayMin!=null?rec.stayMin:null,yarakashi:rec.yarakashi!==false});if(!error)success++;}localStorage.removeItem('yarakashi_v5');await loadRecordsFromSupabase();document.getElementById('migration-banner').remove();renderShopHistory();alert(success+'件を移行しました！');if(document.getElementById('pane-monthly').classList.contains('active'))renderMonthly();}catch(e){alert('移行に失敗しました: '+e.message);btn.textContent='クラウドに移行する';btn.disabled=false;}}
+function saveTonightState(){try{localStorage.setItem('yarakashi_tonight',JSON.stringify({trainMin,drinkCounts:{...drinkCounts},checkinTime:checkinTime?checkinTime.toISOString():null,shop:document.getElementById('shopInput').value,memo:document.getElementById('memoInput').value}));}catch(e){}saveTonightStateToSupabase();}
 function loadTonightState(){try{const s=JSON.parse(localStorage.getItem('yarakashi_tonight')||'null');if(!s)return;if(s.trainMin){trainMin=s.trainMin;trainSet=true;document.getElementById('trainTime').value=pad(Math.floor(trainMin/60)%24)+':'+pad(trainMin%60);}if(s.drinkCounts)drinkCounts=s.drinkCounts;if(s.checkinTime){checkinTime=new Date(s.checkinTime);document.getElementById('checkinBtn').textContent='退店';document.getElementById('checkinBtn').classList.add('active');}document.getElementById('shopInput').value=s.shop||'';document.getElementById('memoInput').value=s.memo||'';}catch(e){}}
 function getThisMonth(){const now=new Date();const ym=now.getFullYear()+'-'+pad(now.getMonth()+1);return records.filter(r=>r.date.startsWith(ym));}
 function renderMonthly(){const now=new Date();const label=now.getFullYear()+'年'+(now.getMonth()+1)+'月';document.getElementById('statMonth').textContent=label;document.getElementById('logMonthLabel').textContent=label+'の記録';const list=getThisMonth().sort((a,b)=>b.date.localeCompare(a.date));const totalCost=list.reduce((s,r)=>s+r.cost,0);const withStay=list.filter(r=>r.stayMin!=null);const avgStay=withStay.length>0?Math.round(withStay.reduce((s,r)=>s+r.stayMin,0)/withStay.length):null;const maxStayRec=withStay.length>0?withStay.reduce((a,b)=>a.stayMin>b.stayMin?a:b):null;document.getElementById('statCount').textContent=list.filter(r=>r.yarakashi!==false).length+'回';document.getElementById('statCost').textContent='¥'+totalCost.toLocaleString();document.getElementById('statAvg').textContent=list.length>0?'1回平均 ¥'+Math.round(totalCost/list.length).toLocaleString():'';document.getElementById('statStay').textContent=avgStay!=null?fmtStay(avgStay):'-';document.getElementById('statMaxStay').textContent=maxStayRec?fmtStay(maxStayRec.stayMin):'-';document.getElementById('statMaxStayDate').textContent=maxStayRec?maxStayRec.date.slice(5).replace('-','/')+'の夜':'';const shopCount={};list.forEach(r=>{if(r.shop){shopCount[r.shop]=(shopCount[r.shop]||0)+1;}});const shopSorted=Object.entries(shopCount).sort((a,b)=>b[1]-a[1]);const shopEl=document.getElementById('shopRankList');if(shopSorted.length===0){shopEl.innerHTML='<div class="log-empty" style="padding:1rem 0">まだデータなし</div>';}else{shopEl.innerHTML=shopSorted.map(([name,cnt],i)=>`<div class="shop-rank-item"><span style="font-size:13px;color:#aaa;min-width:20px">${i+1}</span><span class="shop-rank-name">🏮 ${name}</span><span class="shop-rank-count">${cnt}回やらかし</span>${i===0&&cnt>1?'<span class="shop-rank-badge">要注意</span>':''}</div>`).join('');}const totals={};DRINKS.forEach(d=>totals[d.id]=0);list.forEach(r=>{if(r.drinks)DRINKS.forEach(d=>totals[d.id]+=(r.drinks[d.id]||0));});const maxT=Math.max(...Object.values(totals),1);const sorted=DRINKS.filter(d=>totals[d.id]>0).sort((a,b)=>totals[b.id]-totals[a.id]);const rankEl=document.getElementById('rankList');if(sorted.length===0){rankEl.innerHTML='<div class="log-empty" style="padding:1rem 0">まだデータなし</div>';}else{rankEl.innerHTML=sorted.map(d=>`<div class="rank-item"><span class="rank-emoji">${d.emoji}</span><span class="rank-name">${d.name}</span><div class="rank-bar-wrap"><div class="rank-bar" style="width:${Math.round((totals[d.id]/maxT)*100)}%"></div></div><span class="rank-count">${totals[d.id]}杯</span></div>`).join('');}const logEl=document.getElementById('logList');if(list.length===0){logEl.innerHTML='<div class="log-empty">今月はまだ記録なし（えらい！）</div>';return;}logEl.innerHTML=list.map((r,i)=>{const tags=r.drinks?DRINKS.filter(d=>r.drinks[d.id]>0).map(d=>`<span class="log-tag">${d.emoji}${d.name} ${r.drinks[d.id]}</span>`).join(''):'';return`<div class="log-item"><div><div class="log-date">${r.date.slice(5).replace('-','/')} ${r.yarakashi===false?'<span style="font-size:11px;background:#EAF3DE;color:#3B6D11;padding:2px 7px;border-radius:20px;display:inline-block;">無事帰還</span>':'<span class="log-yara">やらかし</span>'}</div>${r.shop?`<div class="log-shop">🏮 ${r.shop}</div>`:''}<div class="log-memo">${r.memo}</div><div class="log-tags">${tags}</div></div><div class="log-right"><div class="log-cups">合計 ${r.total||0}杯</div>${r.stayMin!=null?'<div class="log-stay">🕐 '+fmtStay(r.stayMin)+'</div>':''}${r.yarakashi!==false?'<div class="log-cost">¥'+r.cost.toLocaleString()+'</div>':''}<button class="del-btn" onclick="deleteRec(${i})">削除</button></div></div>`;}).join('');}
-function deleteRec(i){const list=getThisMonth().sort((a,b)=>b.date.localeCompare(a.date));const idx=records.indexOf(list[i]);if(!confirm('この記録を削除しますか？'))return;if(idx>=0){records.splice(idx,1);save();renderMonthly();}}
-loadTonightState();
-renderDrinkTypes();renderShopHistory();
+function deleteRec(i){const list=getThisMonth().sort((a,b)=>b.date.localeCompare(a.date));const idx=records.indexOf(list[i]);if(!confirm('この記録を削除しますか？'))return;if(idx>=0){deleteRecordFromSupabase(list[i]);records.splice(idx,1);save();renderMonthly();}}
+// ゲストモード時はここで即時初期化（Supabaseログイン後はhandleAuthUserで再初期化）
+renderDrinkTypes();
 setInterval(()=>{updateClock();updateStay();},10000);
 updateClock();
 document.getElementById('shopInput').addEventListener('input',saveTonightState);
 document.getElementById('memoInput').addEventListener('input',saveTonightState);
-// login-screenを同期的に即時非表示（Firebaseより先に実行）
-document.getElementById('login-screen').style.display='none';
-</script>
-
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
-
-window.skipLogin = () => {
-  document.getElementById('login-screen').style.display = 'none';
-};
-window.googleLogin = () => { console.log('Firebase not ready'); };
-window.googleLogout = () => {};
-
-try {
-  const firebaseConfig = {
-    apiKey: "AIzaSyDSHMR5R-skFEOze7mwvuuunvdPozf3iOc",
-    authDomain: "yarakashi-20a43.firebaseapp.com",
-    projectId: "yarakashi-20a43",
-    storageBucket: "yarakashi-20a43.firebasestorage.app",
-    messagingSenderId: "130312665440",
-    appId: "1:130312665440:web:1820af5691572b90ccc605"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const provider = new GoogleAuthProvider();
-
-  getRedirectResult(auth).catch(e => console.log(e));
-
-  window.googleLogin = () => { signInWithRedirect(auth, provider); };
-  window.googleLogout = () => { signOut(auth); };
-
-  onAuthStateChanged(auth, user => {
-    const loginScreen = document.getElementById('login-screen');
-    const userBar = document.getElementById('user-bar');
-    const userName = document.getElementById('user-name');
-    const userPhoto = document.getElementById('user-photo');
-    if (user) {
-      loginScreen.style.display = 'none';
-      userBar.style.display = 'flex';
-      userName.textContent = user.displayName || user.email;
-      if (user.photoURL) {
-        userPhoto.src = user.photoURL;
-        userPhoto.style.display = '';
-      } else {
-        userPhoto.style.display = 'none';
-      }
-    } else {
-      // ゲストモードを維持：未ログインでもlogin-screenを強制表示しない
-      userBar.style.display = 'none';
-    }
-  });
-} catch(e) {
-  console.log('Firebase init error:', e);
-}
+// Supabase初期化
+(async()=>{try{sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);const{data:{session}}=await sb.auth.getSession();if(session){await handleAuthUser(session.user);}else{document.getElementById('login-screen').style.display='flex';}sb.auth.onAuthStateChange(async(event,session)=>{if(event==='SIGNED_IN'&&session){await handleAuthUser(session.user);}else if(event==='SIGNED_OUT'){handleSignOut();}});}catch(e){console.log('Supabase init error:',e);document.getElementById('login-screen').style.display='flex';}})();
 </script>
 </body>
 </html>
