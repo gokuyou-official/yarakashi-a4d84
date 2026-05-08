@@ -152,6 +152,13 @@ h1{font-size:16px;font-weight:500;color:#333;text-align:center;padding:1rem 0 0.
     <button class="logout-btn" onclick="window.googleLogout()">ログアウト</button>
   </div>
   <h1><span style="font-size:22px;font-weight:700;display:block;line-height:1.2">YARAKASHI</span><span style="font-size:13px;font-weight:400;color:#888;display:block;margin-top:2px">🚃 終電逃さないアプリ 🚃</span></h1>
+  <div id="debug-panel" style="background:#222;color:#0f0;padding:12px;border-radius:8px;margin-bottom:1rem;font-size:11px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <strong style="color:#fff">🔍 DEBUGパネル（確認後に削除）</strong>
+      <button onclick="document.getElementById('debug-panel').style.display='none'" style="background:#555;color:#fff;border:none;border-radius:4px;padding:4px 8px;font-size:11px;">閉じる</button>
+    </div>
+    <pre id="debug-output" style="white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;margin:0;"></pre>
+  </div>
   <div class="tabs">
     <div class="tab active" onclick="switchTab('tonight')">今夜</div>
     <div class="tab" onclick="switchTab('monthly')">今月の反省</div>
@@ -299,6 +306,8 @@ document.getElementById('shopInput').addEventListener('input',saveTonightState);
 document.getElementById('memoInput').addEventListener('input',saveTonightState);
 // login-screenを同期的に即時非表示（Firebaseより先に実行）
 document.getElementById('login-screen').style.display='none';
+// DEBUGパネル：localStorageの全レコードを表示
+try{const raw=localStorage.getItem('yarakashi_v5');const data=raw?JSON.parse(raw):[];document.getElementById('debug-output').textContent='キー: yarakashi_v5\n件数: '+data.length+'件\n\n'+data.map((r,i)=>`[${i}] date="${r.date}" shop="${r.shop||''}" total=${r.total||0} yarakashi=${r.yarakashi}`).join('\n');}catch(e){document.getElementById('debug-output').textContent='エラー: '+e.message;}
 </script>
 
 <script type="module">
