@@ -128,6 +128,13 @@ h1{font-size:16px;font-weight:500;color:#333;text-align:center;padding:1rem 0 0.
 </head>
 <body>
 
+<div id="loading-screen" style="position:fixed;inset:0;background:#f5f5f0;display:flex;align-items:center;justify-content:center;z-index:2000;">
+  <div style="text-align:center;color:#888;">
+    <div style="font-size:36px;margin-bottom:12px">🚃</div>
+    <div style="font-size:14px">読み込み中...</div>
+  </div>
+</div>
+
 <div id="login-screen">
   <div class="login-card">
     <div class="login-icon">🚃</div>
@@ -301,6 +308,8 @@ async function loadRecordsFromSupabase(){if(!sb||!currentUser)return;try{const{d
 async function saveTonightStateToSupabase(){if(!sb||!currentUser)return;try{const shop=document.getElementById('shopInput').value;const memo=document.getElementById('memoInput').value;await sb.from('tonight_state').upsert({user_id:currentUser.id,train_min:trainMin,train_set:trainSet,drink_counts:drinkCounts,checkin_time:checkinTime?checkinTime.toISOString():null,shop,memo,updated_at:new Date().toISOString()});}catch(e){}}
 async function loadTonightStateFromSupabase(){if(!sb||!currentUser)return;try{const{data}=await sb.from('tonight_state').select('*').eq('user_id',currentUser.id).maybeSingle();if(!data)return;if(data.train_min&&data.train_set){trainMin=data.train_min;trainSet=true;document.getElementById('trainTime').value=pad(Math.floor(trainMin/60)%24)+':'+pad(trainMin%60);}if(data.drink_counts)drinkCounts=data.drink_counts;if(data.checkin_time){checkinTime=new Date(data.checkin_time);document.getElementById('checkinBtn').textContent='退店';document.getElementById('checkinBtn').classList.add('active');}document.getElementById('shopInput').value=data.shop||'';document.getElementById('memoInput').value=data.memo||'';}catch(e){}}
 async function handleAuthUser(user){if(currentUser&&currentUser.id===user.id)return;currentUser=user;initViewMonth();document.getElementById('login-screen').style.display='none';document.getElementById('user-bar').style.display='flex';document.getElementById('user-name').textContent=user.email;document.getElementById('user-photo').style.display='none';await loadRecordsFromSupabase();renderShopHistory();await loadTonightStateFromSupabase();renderDrinkTypes();updateDrinkSummary();updateClock();updateStay();checkMigration();}
+async function reloadUserData(){if(!sb||!currentUser)return;await loadRecordsFromSupabase();renderShopHistory();await loadTonightStateFromSupabase();renderDrinkTypes();updateDrinkSummary();updateClock();updateStay();}
+async function refreshSession(){if(!sb||guestMode)return;try{const{data:{session}}=await sb.auth.getSession();if(session){if(!currentUser||currentUser.id!==session.user.id){await handleAuthUser(session.user);}else{await reloadUserData();}}else if(currentUser){handleSignOut();}}catch(e){console.log('Session refresh error:',e);}}
 function handleSignOut(){currentUser=null;guestMode=false;records=[];document.getElementById('user-bar').style.display='none';document.getElementById('login-screen').style.display='flex';}
 async function sendMagicLink(){const email=document.getElementById('login-email').value.trim();if(!email){alert('メールアドレスを入力してください');return;}if(!sb){alert('初期化中です。少し待ってから再試行してください');return;}try{const{error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}});if(error){alert('エラー: '+error.message);return;}document.getElementById('login-form').style.display='none';document.getElementById('login-sent').style.display='block';}catch(e){alert('エラー: '+e.message);}}
 function skipLogin(){guestMode=true;document.getElementById('login-screen').style.display='none';loadTonightState();renderShopHistory();}
@@ -323,7 +332,7 @@ updateClock();
 document.getElementById('shopInput').addEventListener('input',saveTonightState);
 document.getElementById('memoInput').addEventListener('input',saveTonightState);
 // Supabase初期化
-(async()=>{try{sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);const{data:{session}}=await sb.auth.getSession();if(session){await handleAuthUser(session.user);}else{document.getElementById('login-screen').style.display='flex';}sb.auth.onAuthStateChange(async(event,session)=>{if(event==='SIGNED_IN'&&session){await handleAuthUser(session.user);}else if(event==='SIGNED_OUT'){handleSignOut();}});}catch(e){console.log('Supabase init error:',e);document.getElementById('login-screen').style.display='flex';}})();
+(async()=>{try{sb=window.supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:localStorage}});const{data:{session}}=await sb.auth.getSession();if(session){await handleAuthUser(session.user);}else{document.getElementById('login-screen').style.display='flex';}sb.auth.onAuthStateChange(async(event,session)=>{if(event==='SIGNED_IN'&&session){await handleAuthUser(session.user);}else if(event==='SIGNED_OUT'){handleSignOut();}});}catch(e){console.log('Supabase init error:',e);document.getElementById('login-screen').style.display='flex';}finally{document.getElementById('loading-screen').style.display='none';}document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshSession();});window.addEventListener('pageshow',(e)=>{if(e.persisted)refreshSession();});})();
 </script>
 </body>
 </html>
