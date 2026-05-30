@@ -6,6 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 <meta name="apple-mobile-web-app-title" content="終電アプリ"/>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#f5f5f0"/>
 <title>🚃 終電逃さないアプリ</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;touch-action:manipulation;}
@@ -122,11 +124,28 @@ h1{font-size:16px;font-weight:500;color:#333;text-align:center;padding:1rem 0 0.
 #user-name{font-size:13px;color:#555;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .logout-btn{font-size:12px;color:#888;background:none;border:0.5px solid #ddd;border-radius:6px;padding:4px 10px;cursor:pointer;}
 .logout-btn:hover{background:#f5f5f0;}
+#pwa-prompt{display:none;background:#E6F1FB;color:#185FA5;padding:10px 1rem;align-items:center;justify-content:space-between;gap:8px;font-size:13px;border-bottom:0.5px solid #B8D8F8;}
+#pwa-prompt button{background:none;border:none;font-size:16px;color:#185FA5;cursor:pointer;padding:2px 4px;}
+#notif-prompt{display:none;background:#FAEEDA;color:#854F0B;padding:10px 1rem;align-items:center;justify-content:space-between;gap:8px;font-size:13px;border-bottom:0.5px solid #E8D5B0;}
+#notif-prompt .notif-btn{padding:6px 12px;font-size:12px;font-weight:500;border:none;border-radius:6px;background:#854F0B;color:#fff;cursor:pointer;}
+#notif-prompt .notif-skip{background:none;border:none;font-size:12px;color:#aaa;cursor:pointer;padding:4px;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.counter.dev/script.js" data-id="17eb9b8b-e902-4730-a467-38ee86086b48" data-utcoffset="9"></script>
 </head>
 <body>
+
+<div id="pwa-prompt">
+  <span>📲 ホーム画面に追加すると通知が届きます</span>
+  <button onclick="dismissPWA()">✕</button>
+</div>
+<div id="notif-prompt">
+  <span>🔔 終電30分前・10分前に通知しますか？</span>
+  <div style="display:flex;gap:6px;align-items:center;">
+    <button class="notif-btn" onclick="requestNotifPerm()">許可する</button>
+    <button class="notif-skip" onclick="dismissNotif()">あとで</button>
+  </div>
+</div>
 
 <div id="loading-screen" style="position:fixed;inset:0;background:#f5f5f0;display:flex;align-items:center;justify-content:center;z-index:2000;">
   <div style="text-align:center;color:#888;">
@@ -282,13 +301,16 @@ function pad(n){return String(n).padStart(2,'0');}
 function getShopHistory(){return[...new Set(records.map(r=>r.shop).filter(s=>s&&s.trim()))].slice(0,6);}
 function renderShopHistory(){const h=getShopHistory();const el=document.getElementById('shopHistory');el.innerHTML=h.map(s=>`<span class="shop-chip" onclick="document.getElementById('shopInput').value='${s.replace(/'/g,"\\'")}'">📍${s}</span>`).join('');}
 function switchTab(t){document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',(i===0&&t==='tonight')||(i===1&&t==='monthly')));document.getElementById('pane-tonight').classList.toggle('active',t==='tonight');document.getElementById('pane-monthly').classList.toggle('active',t==='monthly');if(t==='monthly')renderMonthly();}
-function setTrain(){const v=document.getElementById('trainTime').value;if(!v)return;const[h,m]=v.split(':').map(Number);trainMin=(h<5?h+24:h)*60+m;trainSet=true;alarmFired=new Set();updateClock();saveTonightState();}
+let notifTimers=[];
+function setTrain(){const v=document.getElementById('trainTime').value;if(!v)return;const[h,m]=v.split(':').map(Number);trainMin=(h<5?h+24:h)*60+m;trainSet=true;alarmFired=new Set();updateClock();saveTonightState();scheduleNotifications();if('Notification' in window&&Notification.permission==='default'&&!localStorage.getItem('notif_dismissed')){document.getElementById('notif-prompt').style.display='flex';}}
+function scheduleNotifications(){notifTimers.forEach(t=>clearTimeout(t));notifTimers=[];if(!trainSet||!('Notification' in window)||Notification.permission!=='granted')return;const now=new Date();const nowMin=getNowMin();[30,10].forEach(before=>{const rem=trainMin-nowMin;const ms=(rem-before)*60000;if(ms>0&&ms<24*3600000){notifTimers.push(setTimeout(()=>{if(!alarmFired.has(before)){alarmFired.add(before);fireAlarm(before===30?'終電まで30分！そろそろ準備して！':'終電まであと10分！今すぐ出て！！');}},ms));}});}
 function trackEvent(name){try{fetch("https://counter.dev/track",{method:"POST",body:new URLSearchParams({id:"17eb9b8b-e902-4730-a467-38ee86086b48",event:name})});}catch(e){}}
 function toggleAlarm(){alarmEnabled=!alarmEnabled;const btn=document.getElementById('alarmToggle');btn.textContent=alarmEnabled?'🔔 ON':'🔕 OFF';btn.classList.toggle('on',alarmEnabled);}
 function playBeep(times){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();let t=ctx.currentTime;for(let i=0;i<times;i++){const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;o.type='sine';g.gain.setValueAtTime(0.4,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.3);o.start(t);o.stop(t+0.3);t+=0.45;}}catch(e){}}
-function fireAlarm(msg){playBeep(3);document.body.classList.remove('flash-active');void document.body.offsetWidth;document.body.classList.add('flash-active');document.body.addEventListener('animationend',()=>document.body.classList.remove('flash-active'),{once:true});if('Notification' in window&&Notification.permission==='granted'){new Notification('🚃 終電アラーム',{body:msg,icon:''});}}
+function fireAlarm(msg){playBeep(3);document.body.classList.remove('flash-active');void document.body.offsetWidth;document.body.classList.add('flash-active');document.body.addEventListener('animationend',()=>document.body.classList.remove('flash-active'),{once:true});showNotification('🚃 終電アラーム',msg);}
+function showNotification(title,body){if('Notification' in window&&Notification.permission==='granted'){if(swReg){swReg.showNotification(title,{body,tag:'yarakashi-alarm',renotify:true,requireInteraction:true}).catch(()=>{new Notification(title,{body});});}else{new Notification(title,{body});}}}
 function getNowMin(){const d=new Date();const h=d.getHours();return(h<5?h+24:h)*60+d.getMinutes();}
-function updateClock(){if(!trainSet){document.getElementById('cdNum').textContent='--:--';document.getElementById('cdNum').style.fontSize='52px';document.getElementById('cdLabel').textContent='終電まで';document.getElementById('statusMsg').className='status-msg ok';document.getElementById('statusMsg').textContent='まだ大丈夫！でも飲みすぎ注意 🍺';return;}const rem=trainMin-getNowMin();const cd=document.getElementById('cdNum'),msg=document.getElementById('statusMsg');const total=getTotalDrinks();if(alarmEnabled){if(rem===15&&!alarmFired.has(15)){alarmFired.add(15);fireAlarm('終電まで15分！そろそろ動いて！');}if(rem===5&&!alarmFired.has(5)){alarmFired.add(5);fireAlarm('終電まであと5分！今すぐ出て！！');}}if(rem<=0){cd.textContent='終電行った';cd.style.fontSize='28px';document.getElementById('cdLabel').textContent='😱';msg.className='status-msg danger';msg.textContent='終電行ったよ…タクシー代いくらかな 🚕';}else{const h=Math.floor(rem/60),m=rem%60;cd.textContent=h>0?h+'時間'+pad(m)+'分':m+'分';cd.style.fontSize=h>0?'36px':'52px';document.getElementById('cdLabel').textContent='終電まで';if(rem<=10){msg.className='status-msg danger';msg.textContent='🚨 あと'+rem+'分！今すぐ出て！！';}else if(rem<=20){msg.className='status-msg danger';msg.textContent='🚃 急いで。あと'+rem+'分しかない';}else if(rem<=40){msg.className='status-msg warn';msg.textContent='⚠️ そろそろ動いた方がいいかも（'+rem+'分)';}else{msg.className='status-msg ok';msg.textContent=total<4?'まだ大丈夫！でも飲みすぎ注意 🍺':'杯数ヤバいけど時間はまだある 🍺';}}}
+function updateClock(){if(!trainSet){document.getElementById('cdNum').textContent='--:--';document.getElementById('cdNum').style.fontSize='52px';document.getElementById('cdLabel').textContent='終電まで';document.getElementById('statusMsg').className='status-msg ok';document.getElementById('statusMsg').textContent='まだ大丈夫！でも飲みすぎ注意 🍺';return;}const rem=trainMin-getNowMin();const cd=document.getElementById('cdNum'),msg=document.getElementById('statusMsg');const total=getTotalDrinks();if(alarmEnabled){if(rem===30&&!alarmFired.has(30)){alarmFired.add(30);fireAlarm('終電まで30分！そろそろ準備して！');}if(rem===10&&!alarmFired.has(10)){alarmFired.add(10);fireAlarm('終電まであと10分！今すぐ出て！！');}}if(rem<=0){cd.textContent='終電行った';cd.style.fontSize='28px';document.getElementById('cdLabel').textContent='😱';msg.className='status-msg danger';msg.textContent='終電行ったよ…タクシー代いくらかな 🚕';}else{const h=Math.floor(rem/60),m=rem%60;cd.textContent=h>0?h+'時間'+pad(m)+'分':m+'分';cd.style.fontSize=h>0?'36px':'52px';document.getElementById('cdLabel').textContent='終電まで';if(rem<=10){msg.className='status-msg danger';msg.textContent='🚨 あと'+rem+'分！今すぐ出て！！';}else if(rem<=20){msg.className='status-msg danger';msg.textContent='🚃 急いで。あと'+rem+'分しかない';}else if(rem<=40){msg.className='status-msg warn';msg.textContent='⚠️ そろそろ動いた方がいいかも（'+rem+'分)';}else{msg.className='status-msg ok';msg.textContent=total<4?'まだ大丈夫！でも飲みすぎ注意 🍺':'杯数ヤバいけど時間はまだある 🍺';}}}
 function toggleCheckin(){if(!checkinTime){trackEvent('checkin');checkinTime=new Date();document.getElementById('checkinBtn').textContent='退店';document.getElementById('checkinBtn').classList.add('active');renderShopHistory();updateStay();}else{checkinTime=null;document.getElementById('checkinBtn').textContent='入店';document.getElementById('checkinBtn').classList.remove('active');document.getElementById('checkinStatus').textContent='チェックアウトしました';document.getElementById('stayAlert').innerHTML='';}saveTonightState();}
 function fmtStay(min){if(min<60)return min+'分';return Math.floor(min/60)+'時間'+pad(min%60)+'分';}
 function updateStay(){if(!checkinTime)return;const elapsed=Math.floor((new Date()-checkinTime)/60000);const shop=document.getElementById('shopInput').value.trim();document.getElementById('checkinStatus').textContent=(shop?'📍'+shop+' で':'')+'滞在中 🍺';document.getElementById('stayTime').textContent=fmtStay(elapsed);document.getElementById('staySince').textContent=checkinTime.getHours()+':'+pad(checkinTime.getMinutes())+'から';const pct=Math.min((elapsed/180)*100,100);document.getElementById('stayBar').style.width=pct+'%';document.getElementById('stayBar').style.background=elapsed<60?'#378ADD':elapsed<120?'#BA7517':'#A32D2D';const a=document.getElementById('stayAlert');if(elapsed>=180)a.innerHTML='<div class="stay-danger-msg">3時間超え。もうほぼ終電ない時間帯では…？ 🚕</div>';else if(elapsed>=120)a.innerHTML='<div class="stay-danger-msg">2時間経過。そろそろ本気でやばい 😇</div>';else if(elapsed>=90)a.innerHTML='<div class="stay-warn-msg">1時間半。終電を意識し始めるべき時間です</div>';else if(elapsed>=60)a.innerHTML='<div class="stay-warn-msg">1時間経過。飲みすぎていませんか？ 🍺</div>';else a.innerHTML='';}
@@ -331,8 +353,20 @@ setInterval(()=>{updateClock();updateStay();},10000);
 updateClock();
 document.getElementById('shopInput').addEventListener('input',saveTonightState);
 document.getElementById('memoInput').addEventListener('input',saveTonightState);
+// Service Worker & Push
+let swReg=null;
+const VAPID_PUBLIC='BKg4KH_rjWCOB5hIxe2APm8vLsxCVsWS9Up5GS7RlRdJLphqJ5lPyiS5TiSHbU-RceZrdMWSnwFVr-mIY7eiOKo';
+async function registerSW(){if(!('serviceWorker' in navigator))return;try{swReg=await navigator.serviceWorker.register('sw.js');console.log('SW registered');}catch(e){console.log('SW error:',e);}}
+function urlBase64ToUint8Array(base64String){const padding='='.repeat((4-base64String.length%4)%4);const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');const raw=atob(base64);const arr=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);return arr;}
+async function subscribePush(){if(!swReg||!swReg.pushManager)return null;try{let sub=await swReg.pushManager.getSubscription();if(sub)return sub;sub=await swReg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC)});await savePushSubscription(sub);return sub;}catch(e){console.log('Push subscribe error:',e);return null;}}
+async function savePushSubscription(sub){if(!sb||!currentUser||!sub)return;try{const json=sub.toJSON();await sb.from('push_subscriptions').upsert({user_id:currentUser.id,endpoint:json.endpoint,p256dh:json.keys.p256dh,auth:json.keys.auth,updated_at:new Date().toISOString()},{onConflict:'user_id'});}catch(e){console.log('Save push sub error:',e);}}
+function requestNotifPerm(){if(!('Notification' in window))return;Notification.requestPermission().then(p=>{document.getElementById('notif-prompt').style.display='none';if(p==='granted'){scheduleNotifications();subscribePush();}});}
+function dismissNotif(){document.getElementById('notif-prompt').style.display='none';localStorage.setItem('notif_dismissed','1');}
+// PWA install prompt
+function checkPWAPrompt(){const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;const isStandalone=window.navigator.standalone===true||window.matchMedia('(display-mode:standalone)').matches;if(isIOS&&!isStandalone&&!localStorage.getItem('pwa_dismissed')){document.getElementById('pwa-prompt').style.display='flex';}}
+function dismissPWA(){document.getElementById('pwa-prompt').style.display='none';localStorage.setItem('pwa_dismissed','1');}
 // Supabase初期化
-(async()=>{try{sb=window.supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:localStorage}});const{data:{session}}=await sb.auth.getSession();if(session){await handleAuthUser(session.user);}else{document.getElementById('login-screen').style.display='flex';}sb.auth.onAuthStateChange(async(event,session)=>{if(event==='SIGNED_IN'&&session){await handleAuthUser(session.user);}else if(event==='SIGNED_OUT'){handleSignOut();}});}catch(e){console.log('Supabase init error:',e);document.getElementById('login-screen').style.display='flex';}finally{document.getElementById('loading-screen').style.display='none';}document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshSession();});window.addEventListener('pageshow',(e)=>{if(e.persisted)refreshSession();});})();
+(async()=>{await registerSW();try{sb=window.supabase.createClient(SUPA_URL,SUPA_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:localStorage}});const{data:{session}}=await sb.auth.getSession();if(session){await handleAuthUser(session.user);}else{document.getElementById('login-screen').style.display='flex';}sb.auth.onAuthStateChange(async(event,session)=>{if(event==='SIGNED_IN'&&session){await handleAuthUser(session.user);}else if(event==='SIGNED_OUT'){handleSignOut();}});}catch(e){console.log('Supabase init error:',e);document.getElementById('login-screen').style.display='flex';}finally{document.getElementById('loading-screen').style.display='none';}checkPWAPrompt();if('Notification' in window&&Notification.permission==='granted'){scheduleNotifications();if(swReg)subscribePush();}document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshSession();});window.addEventListener('pageshow',(e)=>{if(e.persisted)refreshSession();});})();
 </script>
 </body>
 </html>
