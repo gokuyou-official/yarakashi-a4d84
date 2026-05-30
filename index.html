@@ -126,9 +126,6 @@ h1{font-size:16px;font-weight:500;color:#333;text-align:center;padding:1rem 0 0.
 .logout-btn:hover{background:#f5f5f0;}
 #pwa-prompt{display:none;background:#E6F1FB;color:#185FA5;padding:10px 1rem;align-items:center;justify-content:space-between;gap:8px;font-size:13px;border-bottom:0.5px solid #B8D8F8;}
 #pwa-prompt button{background:none;border:none;font-size:16px;color:#185FA5;cursor:pointer;padding:2px 4px;}
-#notif-prompt{display:none;background:#FAEEDA;color:#854F0B;padding:10px 1rem;align-items:center;justify-content:space-between;gap:8px;font-size:13px;border-bottom:0.5px solid #E8D5B0;}
-#notif-prompt .notif-btn{padding:6px 12px;font-size:12px;font-weight:500;border:none;border-radius:6px;background:#854F0B;color:#fff;cursor:pointer;}
-#notif-prompt .notif-skip{background:none;border:none;font-size:12px;color:#aaa;cursor:pointer;padding:4px;}
 </style>
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -143,11 +140,11 @@ window._supabaseResolve && window._supabaseResolve()
   <span>📲 ホーム画面に追加すると通知が届きます</span>
   <button onclick="dismissPWA()">✕</button>
 </div>
-<div id="notif-prompt">
-  <span>🔔 終電30分前・10分前に通知しますか？</span>
-  <div style="display:flex;gap:6px;align-items:center;">
-    <button class="notif-btn" onclick="requestNotifPerm()">許可する</button>
-    <button class="notif-skip" onclick="dismissNotif()">あとで</button>
+<div id="notif-prompt" style="display:none;background:#FFF3CD;color:#856404;padding:10px 1rem;align-items:center;justify-content:space-between;gap:8px;font-size:13px;border-bottom:0.5px solid #FFD700;">
+  <span>🔔 終電前に通知を受け取りますか？</span>
+  <div style="display:flex;gap:8px;">
+    <button onclick="requestNotifPerm()" style="background:#856404;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:12px;">許可する</button>
+    <button onclick="document.getElementById('notif-prompt').style.display='none'" style="background:none;border:none;font-size:16px;color:#856404;">✕</button>
   </div>
 </div>
 
@@ -321,7 +318,7 @@ function getShopHistory(){return[...new Set(records.map(r=>r.shop).filter(s=>s&&
 function renderShopHistory(){const h=getShopHistory();const el=document.getElementById('shopHistory');el.innerHTML=h.map(s=>`<span class="shop-chip" onclick="document.getElementById('shopInput').value='${s.replace(/'/g,"\\'")}'">📍${s}</span>`).join('');}
 function switchTab(t){document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',(i===0&&t==='tonight')||(i===1&&t==='monthly')));document.getElementById('pane-tonight').classList.toggle('active',t==='tonight');document.getElementById('pane-monthly').classList.toggle('active',t==='monthly');if(t==='monthly')renderMonthly();}
 let notifTimers=[];
-function setTrain(){const v=document.getElementById('trainTime').value;if(!v)return;const[h,m]=v.split(':').map(Number);trainMin=(h<5?h+24:h)*60+m;trainSet=true;alarmFired=new Set();updateClock();saveTonightState();scheduleNotifications();if('Notification' in window&&Notification.permission==='default'&&!localStorage.getItem('notif_dismissed')){document.getElementById('notif-prompt').style.display='flex';}}
+function setTrain(){const v=document.getElementById('trainTime').value;if(!v)return;const[h,m]=v.split(':').map(Number);trainMin=(h<5?h+24:h)*60+m;trainSet=true;alarmFired=new Set();updateClock();saveTonightState();scheduleNotifications();if('Notification' in window&&Notification.permission==='default'){document.getElementById('notif-prompt').style.display='flex';}}
 function scheduleNotifications(){notifTimers.forEach(t=>clearTimeout(t));notifTimers=[];if(!trainSet||!('Notification' in window)||Notification.permission!=='granted')return;const now=new Date();const nowMin=getNowMin();[30,10].forEach(before=>{const rem=trainMin-nowMin;const ms=(rem-before)*60000;if(ms>0&&ms<24*3600000){notifTimers.push(setTimeout(()=>{if(!alarmFired.has(before)){alarmFired.add(before);fireAlarm(before===30?'終電まで30分！そろそろ準備して！':'終電まであと10分！今すぐ出て！！');}},ms));}});}
 function trackEvent(name){try{fetch("https://counter.dev/track",{method:"POST",body:new URLSearchParams({id:"17eb9b8b-e902-4730-a467-38ee86086b48",event:name})});}catch(e){}}
 function toggleAlarm(){alarmEnabled=!alarmEnabled;const btn=document.getElementById('alarmToggle');btn.textContent=alarmEnabled?'🔔 ON':'🔕 OFF';btn.classList.toggle('on',alarmEnabled);}
