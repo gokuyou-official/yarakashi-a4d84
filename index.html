@@ -136,6 +136,9 @@ window._supabaseResolve && window._supabaseResolve()
 </head>
 <body>
 
+<div id="active-users" style="background:#FFF8E7;color:#8B6914;padding:8px 1rem;text-align:center;font-size:13px;font-weight:500;border-bottom:0.5px solid #F0D060;">
+  🍺 今夜<span id="active-count">-</span>人がやらかし中
+</div>
 <div id="pwa-prompt">
   <span>📲 ホーム画面に追加すると通知が届きます</span>
   <button onclick="dismissPWA()">✕</button>
@@ -198,11 +201,7 @@ window._supabaseResolve && window._supabaseResolve()
     <span id="user-name"></span>
     <button class="logout-btn" onclick="doLogout()">ログアウト</button>
   </div>
-  <h1><span style="font-size:22px;font-weight:700;display:block;line-height:1.2">YARAKASHI</span><span style="font-size:13px;font-weight:400;color:#888;display:block;margin-top:2px">🚃 終電逃さないアプリ 🚃</span>
-    <div id="active-users" style="font-size:12px;color:#888;margin-top:2px;">
-      今夜<span id="active-count">-</span>人がやらかし中🍺
-    </div>
-  </h1>
+  <h1><span style="font-size:22px;font-weight:700;display:block;line-height:1.2">YARAKASHI</span><span style="font-size:13px;font-weight:400;color:#888;display:block;margin-top:2px">🚃 終電逃さないアプリ 🚃</span></h1>
   <div class="tabs">
     <div class="tab active" onclick="switchTab('tonight')">今夜</div>
     <div class="tab" onclick="switchTab('monthly')">今月の反省</div>
